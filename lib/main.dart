@@ -132,52 +132,105 @@ class _MyAppState extends State<MyApp> {
   }
 
 readData() {
-  String studentNameInput = nameController.text.trim();
-  DocumentReference documentReference = FirebaseFirestore.instance
-      .collection("MyStudents")
-      .doc(studentNameInput);
+    String studentNameInput = nameController.text.trim();
+    
 
-  documentReference.get().then((datasnapshot) {
-    if (datasnapshot.exists) {
-      Map<String, dynamic>? data = datasnapshot.data() as Map<String, dynamic>?;
-      if (data != null) {
-        setState(() {
-            nameController.text = data["studentName"] ?? '';
-            idController.text = data["studentID"] ?? '';
-            programIDController.text = data["studentProgramID"] ?? '';
-            gpaController.text = data["studentGPA"]?.toString() ?? '';
-          });
-      } else {
-        print("No data found");
-      }
+    if (studentNameInput.isEmpty) {
+      FirebaseFirestore.instance
+          .collection("MyStudents")
+          .snapshots()
+          .listen((snapshot) {
+        List<DataRow> studentRows = [];
+        
+        for (var doc in snapshot.docs) {
+          var data = doc.data();
+          String studentID = data["studentID"] ?? '';
+          String studentName = data["studentName"] ?? '';
+          String studentProgramID = data["studentProgramID"] ?? '';
+          double studentGPA = data["studentGPA"] ?? 0.0;
+
+          studentRows.add(DataRow(cells: [
+            DataCell(Text(studentID)),
+            DataCell(Text(studentName)),
+            DataCell(Text(studentProgramID)),
+            DataCell(Text(studentGPA.toString())),
+          ]));
+        }
+
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Student List'),
+              content: SingleChildScrollView(
+                child: DataTable(
+                  columns: [
+                    DataColumn(label: Text('Student ID')),
+                    DataColumn(label: Text('Name')),
+                    DataColumn(label: Text('Program ID')),
+                    DataColumn(label: Text('GPA')),
+                  ],
+                  rows: studentRows,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: Text('Close'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      });
     } else {
-      print("Document does not exist.");
+
+      DocumentReference documentReference = FirebaseFirestore.instance
+          .collection("MyStudents")
+          .doc(studentNameInput);
+
+      documentReference.get().then((datasnapshot) {
+        if (datasnapshot.exists) {
+          Map<String, dynamic>? data = datasnapshot.data() as Map<String, dynamic>?;
+
+          if (data != null) {
+            setState(() {
+              nameController.text = data["studentName"] ?? '';
+              idController.text = data["studentID"] ?? '';
+              programIDController.text = data["studentProgramID"] ?? '';
+              gpaController.text = data["studentGPA"]?.toString() ?? '';
+            });
+          } else {
+            print("No data found");
+          }
+        } else {
+          print("Document does not exist.");
+        }
+      }).catchError((e) {
+        print("Error getting document: $e");
+      });
     }
-  }).catchError((e) {
-    print("Error getting document: $e");
-  });
-}
+  }
+
 
 
   Future<void> updateData() async {
-  // Lấy giá trị từ các TextEditingController
   String updatedName = nameController.text;
   String updatedID = idController.text;
   String updatedProgramID = programIDController.text;
   double? updatedGPA;
-
-  // Kiểm tra và chuyển đổi GPA từ string sang double
   try {
     updatedGPA = double.parse(gpaController.text);
   } catch (e) {
     print("Invalid GPA entered");
-    return; // Thoát hàm nếu GPA không hợp lệ
+    return; 
   }
 
   DocumentReference documentReference = 
     FirebaseFirestore.instance.collection("MyStudents").doc(updatedName);
 
-  // Tạo Map
   Map<String, dynamic> students = {
     "studentName": updatedName,
     "studentID": updatedID,
@@ -188,13 +241,11 @@ readData() {
   await documentReference.set(students).whenComplete(() {
     print("$updatedName updated");
 
-    // Xóa dữ liệu trong các TextEditingController
     nameController.clear();
     idController.clear();
     programIDController.clear();
     gpaController.clear();
 
-    // Cập nhật lại các biến để tránh xung đột khi nhập lại
     setState(() {
       studentName = '';
       studentID = '';
